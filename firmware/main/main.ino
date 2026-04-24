@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include "DHT.h"
+#include <ESP32Servo.h>
 
 #define SOIL_PIN 34
 #define LIGHT_PIN 35
@@ -13,12 +14,41 @@
 #define DHT_PIN 4
 #define DHT_TYPE DHT11
 
+#define SERVO_PIN 14
+
+#define IN1 18
+#define IN2 19
+#define IN3 21
+#define IN4 22
+
 DHT dht(DHT_PIN, DHT_TYPE);
+Servo myServo;
 
 int soilThreshold = 1500;
 int tempThreshold = 30;
-int waterMinLevel = 1000;     
+int waterMinLevel = 1000;
+int stepSequence[8][4] = {
+  {1,0,0,0},
+  {1,1,0,0},
+  {0,1,0,0},
+  {0,1,1,0},
+  {0,0,1,0},
+  {0,0,1,1},
+  {0,0,0,1},
+  {1,0,0,1}
+};
 
+void stepMotor(int steps) {
+  for(int i = 0; i < steps; i++) {
+    for(int j = 0; j < 8; j++) {
+      digitalWrite(IN1, stepSequence[j][0]);
+      digitalWrite(IN2, stepSequence[j][1]);
+      digitalWrite(IN3, stepSequence[j][2]);
+      digitalWrite(IN4, stepSequence[j][3]);
+      delay(2);
+    }
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -27,6 +57,12 @@ void setup() {
   pinMode(FAN_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(FLAME_PIN, INPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  myServo.attach(SERVO_PIN);
 
   digitalWrite(PUMP_PIN, LOW);
   digitalWrite(FAN_PIN, LOW);
@@ -34,7 +70,6 @@ void setup() {
 
   dht.begin();
 }
-
 
 void loop() {
 
@@ -54,27 +89,35 @@ void loop() {
   Serial.print("Humidity: "); Serial.println(humidity);
   Serial.print("Flame: "); Serial.println(flame);
 
-
   if (soil > soilThreshold && waterLevel > waterMinLevel) {
     digitalWrite(PUMP_PIN, HIGH);
   } else {
     digitalWrite(PUMP_PIN, LOW);
   }
 
-  // if (temp > tempThreshold) {
-  //   digitalWrite(FAN_PIN,LOW);
-  // } else {
-  //   digitalWrite(FAN_PIN, HIGH);
-  // }
-
-
+  
   if (flame == LOW) { 
     digitalWrite(BUZZER_PIN, HIGH);
     digitalWrite(FAN_PIN, HIGH);
-  }
-  else {
+    digitalWrite(PUMP_PIN, HIGH); 
+
+ 
+    myServo.write(0);
+    delay(500);
+    myServo.write(90);
+    delay(500);
+    myServo.write(180);
+    delay(500);
+
+   
+    stepMotor(100);
+
+  } else {
     digitalWrite(BUZZER_PIN, LOW);
-    digitalWrite(FAN_PIN,LOW);
+    digitalWrite(FAN_PIN, LOW);
+    digitalWrite(PUMP_PIN, LOW);
+
+    myServo.write(0); 
   }
 
   delay(2000);
