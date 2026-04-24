@@ -1,54 +1,16 @@
 #include <WiFi.h>
 #include "DHT.h"
 #include <ESP32Servo.h>
+#include "config.h"
+#include "logic.h"
 
-#define SOIL_PIN 34
-#define LIGHT_PIN 35
-#define WATER_LEVEL_PIN 32
-#define FLAME_PIN 27
-
-#define PUMP_PIN 26
-#define FAN_PIN 25
-#define BUZZER_PIN 33
-
-#define DHT_PIN 4
-#define DHT_TYPE DHT11
-
-#define SERVO_PIN 14
-
-#define IN1 18
-#define IN2 19
-#define IN3 21
-#define IN4 22
-
-DHT dht(DHT_PIN, DHT_TYPE);
+DHT dht(DHT_PIN, DHT11);
 Servo myServo;
 
-int soilThreshold = 1500;
-int tempThreshold = 30;
-int waterMinLevel = 1000;
-int stepSequence[8][4] = {
-  {1,0,0,0},
-  {1,1,0,0},
-  {0,1,0,0},
-  {0,1,1,0},
-  {0,0,1,0},
-  {0,0,1,1},
-  {0,0,0,1},
-  {1,0,0,1}
-};
-
-void stepMotor(int steps) {
-  for(int i = 0; i < steps; i++) {
-    for(int j = 0; j < 8; j++) {
-      digitalWrite(IN1, stepSequence[j][0]);
-      digitalWrite(IN2, stepSequence[j][1]);
-      digitalWrite(IN3, stepSequence[j][2]);
-      digitalWrite(IN4, stepSequence[j][3]);
-      delay(2);
-    }
-  }
-}
+bool pumpState = false;
+bool fanState = false;
+bool buzzerState = false;
+int currentZone = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -57,23 +19,20 @@ void setup() {
   pinMode(FAN_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(FLAME_PIN, INPUT);
+
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);
   pinMode(IN4, OUTPUT);
 
   myServo.attach(SERVO_PIN);
-
-  digitalWrite(PUMP_PIN, LOW);
-  digitalWrite(FAN_PIN, LOW);
-  digitalWrite(BUZZER_PIN, LOW);
-
   dht.begin();
 }
 
 void loop() {
 
-  int soil = analogRead(SOIL_PIN);
+  int soil1 = analogRead(SOIL1_PIN);
+  int soil2 = analogRead(SOIL2_PIN);
   int light = analogRead(LIGHT_PIN);
   int waterLevel = analogRead(WATER_LEVEL_PIN);
   int flame = digitalRead(FLAME_PIN);
@@ -81,44 +40,62 @@ void loop() {
   float temp = dht.readTemperature();
   float humidity = dht.readHumidity();
 
-  Serial.println("------ SENSOR DATA ------");
-  Serial.print("Soil: "); Serial.println(soil);
-  Serial.print("Light: "); Serial.println(light);
-  Serial.print("Water Level: "); Serial.println(waterLevel);
-  Serial.print("Temp: "); Serial.println(temp);
-  Serial.print("Humidity: "); Serial.println(humidity);
-  Serial.print("Flame: "); Serial.println(flame);
+  pumpState = false;
+  fanState = false;
+  buzzerState = false;
 
-  if (soil > soilThreshold && waterLevel > waterMinLevel) {
-    digitalWrite(PUMP_PIN, HIGH);
-  } else {
-    digitalWrite(PUMP_PIN, LOW);
+  if(autoMode) {
+
+    if(flame == LOW) {
+      buzzerState = true;
+    }
+
+    if(temp > tempThreshold) {
+      fanState = true;
+    }
+
+    int targetZone = 0;
+
+    if(soil1 > soilThreshold) targetZone = 1;
+    if(soil2 > soilThreshold) targetZone = 2;
+
+    if(targetZone != 0 && waterLevel > waterMinLevel) {
+
+      if(currentZone != targetZone) {
+        moveToZone(targetZone);
+        currentZone = targetZone;
+      }
+
+      int wateringTime = 1000;
+      if(temp > tempThreshold) wateringTime += 500;
+
+      pumpState = true;
+      digitalWrite(PUMP_PIN, HIGH);
+      delay(wateringTime);
+      digitalWrite(PUMP_PIN, LOW);
+      pumpState = false;
+    }
+
+    if(light > lightThreshold) {
+      myServo.write(120);
+    } else {
+      myServo.write(0);
+    }
   }
 
-  
-  if (flame == LOW) { 
-    digitalWrite(BUZZER_PIN, HIGH);
-    digitalWrite(FAN_PIN, HIGH);
-    digitalWrite(PUMP_PIN, HIGH); 
+  digitalWrite(PUMP_PIN, pumpState);
+  digitalWrite(FAN_PIN, fanState);
+  digitalWrite(BUZZER_PIN, buzzerState);
 
- 
-    myServo.write(0);
-    delay(500);
-    myServo.write(90);
-    delay(500);
-    myServo.write(180);
-    delay(500);
-
-   
-    stepMotor(100);
-
-  } else {
-    digitalWrite(BUZZER_PIN, LOW);
-    digitalWrite(FAN_PIN, LOW);
-    digitalWrite(PUMP_PIN, LOW);
-
-    myServo.write(0); 
-  }
+  Serial.print("soil1:"); Serial.print(soil1);
+  Serial.print(",soil2:"); Serial.print(soil2);
+  Serial.print(",temp:"); Serial.print(temp);
+  Serial.print(",humidity:"); Serial.print(humidity);
+  Serial.print(",light:"); Serial.print(light);
+  Serial.print(",water:"); Serial.print(waterLevel);
+  Serial.print(",pump:"); Serial.print(pumpState);
+  Serial.print(",fan:"); Serial.print(fanState);
+  Serial.print(",buzzer:"); Serial.println(buzzerState);
 
   delay(2000);
 }
