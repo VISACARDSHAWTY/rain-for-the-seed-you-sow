@@ -24,3 +24,5 @@ int lightThreshold = 2000;
 int waterMinLevel = 1000;
 
 bool autoMode = true;
+
+const char* mqtt_server = "192.168.1.104";
