@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const mqtt = require("mqtt");
 const Log = require("../models/Log");
 
-const MQTT_URL = "mqtt://192.168.1.104:1883";
+const MQTT_URL = "mqtt://10.52.170.186:1883";
 const MQTT_TOPIC = "smartplant/data";
 
 const initMqttClient = () => {

@@ -9,31 +9,67 @@
 
 DHT dht(DHT_PIN, DHT11);
 Servo myServo;
-
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-bool pumpState = false;
-bool fanState = false;
+bool pumpState   = false;
+bool fanState    = false;
 bool buzzerState = false;
-
 String pumpSource = "auto";
-String fanSource = "auto";
-String buzzerSource = "auto";
-
-int currentZone = 0;
-int servoAngle = 0;
+String fanSource  = "auto";
 
 unsigned long lastPublish = 0;
-unsigned long publishInterval = 3000;
+unsigned long lastDHTRead = 0;
+float temp = NAN, humidity = NAN;
 
+// ── WiFi ──────────────────────────────────────────────
 void setup_wifi() {
+  Serial.println("Connecting to WiFi...");
+  
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  int retries = 0;
+
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
+    Serial.print(".");
+
+    retries++;
+
+    if (retries % 10 == 0) { 
+      wl_status_t status = WiFi.status();
+
+      Serial.print("\nStatus: ");
+
+      switch (status) {
+        case WL_NO_SSID_AVAIL:
+          Serial.println("SSID not found");
+          break;
+        case WL_CONNECT_FAILED:
+          Serial.println("Wrong password");
+          break;
+        case WL_DISCONNECTED:
+          Serial.println("Disconnected");
+          break;
+        case WL_IDLE_STATUS:
+          Serial.println("Idle...");
+          break;
+        default:
+          Serial.println("Unknown issue");
+          break;
+      }
+      Serial.println("Retrying in 5 seconds...");
+      delay(5000);
+    }
+
   }
+
+  Serial.println("\nConnected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
 }
 
+// ── MQTT ──────────────────────────────────────────────
 void callback(char* topic, byte* message, unsigned int length) {
   String msg;
   for (int i = 0; i < length; i++) {
@@ -71,151 +107,148 @@ void callback(char* topic, byte* message, unsigned int length) {
 
 void reconnect() {
   Serial.println("Connecting to MQTT...");
+
   while (!client.connected()) {
     String clientId = "ESP32-" + String(random(0xffff), HEX);
+    Serial.print("Attempting MQTT connection with ID: ");
+    Serial.println(clientId);
+
     if (client.connect(clientId.c_str())) {
-      client.subscribe("smartplant/control");
       Serial.println("MQTT connected");
+      
+      if (client.subscribe("smartplant/control")) {
+        Serial.println("Subscribed to topic: smartplant/control");
+      } else {
+        Serial.println("Failed to subscribe");
+      }
+
     } else {
+      Serial.print("MQTT failed, rc=");
+      Serial.print(client.state());
+      Serial.print(" → ");
+
+      switch (client.state()) {
+        case -4:
+          Serial.println("Connection timeout");
+          break;
+        case -3:
+          Serial.println("Connection lost");
+          break;
+        case -2:
+          Serial.println("Connect failed (broker unreachable)");
+          break;
+        case -1:
+          Serial.println("Disconnected");
+          break;
+        case 1:
+          Serial.println("Bad protocol");
+          break;
+        case 2:
+          Serial.println("Bad client ID");
+          break;
+        case 3:
+          Serial.println("Server unavailable");
+          break;
+        case 4:
+          Serial.println("Bad username/password");
+          break;
+        case 5:
+          Serial.println("Not authorized");
+          break;
+        default:
+          Serial.println("Unknown error");
+          break;
+      }
+
+      Serial.println("Retrying in 2 seconds...\n");
       delay(2000);
     }
   }
 }
 
+// ── Setup ─────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
 
-  pinMode(PUMP_PIN, OUTPUT);
-  pinMode(FAN_PIN, OUTPUT);
+  pinMode(PUMP_PIN,   OUTPUT);
+  pinMode(FAN_PIN,    OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(FLAME_PIN, INPUT);
-
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT);
-  pinMode(IN4, OUTPUT);
+  pinMode(FLAME_PIN,  INPUT);
+  pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
 
   myServo.attach(SERVO_PIN);
   dht.begin();
-
   setup_wifi();
-
-
-  client.setBufferSize(1024);
-  Serial.print("MQTT buffer size: ");
-  Serial.println(client.getBufferSize());
-
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+  client.setBufferSize(1024);
 }
 
+// ── Loop ──────────────────────────────────────────────
 void loop() {
-
-  if (!client.connected()) {
-    reconnect();
-  }
+  if (!client.connected()) reconnect();
   client.loop();
 
-  int soil1 = analogRead(SOIL1_PIN);
-  int soil2 = analogRead(SOIL2_PIN);
-  int light = analogRead(LIGHT_PIN);
-  int waterLevel = analogRead(WATER_LEVEL_PIN);
-  int flame = digitalRead(FLAME_PIN);
-
-  float temp = dht.readTemperature();
-  float humidity = dht.readHumidity();
-
-  if (flame == LOW) {
-    buzzerState = true;
-    buzzerSource = "auto";
-  } else {
-    buzzerState = false;
+  
+  if (millis() - lastDHTRead >= 2000) {
+    float t = dht.readTemperature();
+    float h = dht.readHumidity();
+    if (!isnan(t)) temp     = t;
+    if (!isnan(h)) humidity = h;
+    lastDHTRead = millis();
   }
+
+  int soil1      = analogRead(SOIL1_PIN);
+  int soil2      = analogRead(SOIL2_PIN);
+  int light      = analogRead(LIGHT_PIN);
+  int waterLevel = analogRead(WATER_LEVEL_PIN);
+  int flame      = digitalRead(FLAME_PIN);
+
+  buzzerState = (flame == HIGH);
 
   if (autoMode) {
+    if (fanSource == "auto") fanState = (!isnan(temp) && temp > tempThreshold);
 
-    if (temp > tempThreshold) {
-      fanState = true;
-      fanSource = "auto";
-    }
+    myServo.write(light > lightThreshold ? 90 : 0);
 
-    int targetZone = 0;
+    if (pumpSource == "auto") {
+      bool soil1Dry = soil1 > soilThreshold;
+      bool soil2Dry = soil2 > soilThreshold;
 
-    if (soil1 > soilThreshold) targetZone = 1;
-    if (soil2 > soilThreshold) targetZone = 2;
-
-    if (targetZone != 0 && waterLevel > waterMinLevel) {
-
-      if (currentZone != targetZone) {
-        moveToZone(targetZone);
-        currentZone = targetZone;
+      if (soil1Dry && waterLevel > waterMinLevel) {
+        moveToZone(1);
+        pumpState = true;
+      } else if (soil2Dry && waterLevel > waterMinLevel) {
+        moveToZone(2);
+        pumpState = true;
+      } else {
+        pumpState = false;
+        moveToZone(0);
       }
-
-      int wateringTime = 1000;
-      if (temp > tempThreshold) wateringTime += 500;
-
-      pumpState = true;
-      pumpSource = "auto";
-
-      digitalWrite(PUMP_PIN, HIGH);
-      delay(wateringTime);
-      digitalWrite(PUMP_PIN, LOW);
-
-      pumpState = false;
-    }
-
-    if (light > lightThreshold) {
-      servoAngle = 120;
-      myServo.write(servoAngle);
-    } else {
-      servoAngle = 0;
-      myServo.write(servoAngle);
     }
   }
 
-  digitalWrite(PUMP_PIN, pumpState);
-  digitalWrite(FAN_PIN, fanState);
-  digitalWrite(BUZZER_PIN, buzzerState);
+  digitalWrite(PUMP_PIN,   pumpState   ? HIGH : LOW);
+  digitalWrite(FAN_PIN,    fanState    ? HIGH : LOW);
+  digitalWrite(BUZZER_PIN, buzzerState ? HIGH : LOW);
 
-  if (millis() - lastPublish > publishInterval) {
+  if (millis() - lastPublish >= 3000) {
     lastPublish = millis();
-
-    String payload = "{";
-
-    payload += "\"sensors\":{";
-    payload += "\"soil1\":" + String(soil1) + ",";
-    payload += "\"soil2\":" + String(soil2) + ",";
-    payload += "\"temperature\":" + String(temp) + ",";
-    payload += "\"humidity\":" + String(humidity) + ",";
-    payload += "\"light\":" + String(light) + ",";
-    payload += "\"waterLevel\":" + String(waterLevel);
-    payload += "},";
-
-    payload += "\"actuators\":{";
-
-    payload += "\"pump\":{\"state\":" + String(pumpState ? "true":"false") + ",\"source\":\"" + pumpSource + "\"},";
-
-    payload += "\"fan\":{\"state\":" + String(fanState ? "true":"false") + ",\"source\":\"" + fanSource + "\"},";
-
-    payload += "\"buzzer\":{\"state\":" + String(buzzerState ? "true":"false") + ",\"source\":\"" + buzzerSource + "\"},";
-
-    payload += "\"servoAngle\":" + String(servoAngle) + ",";
-    payload += "\"zone\":" + String(currentZone);
-
-    payload += "}";
-
-    payload += "}";
-
-    bool ok = client.publish("smartplant/data", payload.c_str());
-    if (!ok) {
-      Serial.print("MQTT publish failed. state=");
-      Serial.print(client.state());
-      Serial.print(" payload_size=");
-      Serial.println(payload.length());
-    } else {
-      Serial.println("MQTT publish ok");
-    }
+    String payload = "{\"sensors\":{";
+    payload += "\"soil1\":"       + String(soil1)      + ",";
+    payload += "\"soil2\":"       + String(soil2)      + ",";
+    payload += "\"temperature\":" + String(temp)       + ",";
+    payload += "\"humidity\":"    + String(humidity)   + ",";
+    payload += "\"light\":"       + String(light)      + ",";
+    payload += "\"waterLevel\":"  + String(waterLevel);
+    payload += "},\"actuators\":{";
+    payload += "\"pump\":{\"state\":"   + String(pumpState  ? "true":"false") + ",\"source\":\"" + pumpSource + "\"},";
+    payload += "\"fan\":{\"state\":"    + String(fanState   ? "true":"false") + ",\"source\":\"" + fanSource  + "\"},";
+    payload += "\"buzzer\":{\"state\":" + String(buzzerState ? "true":"false") + "},";
+    payload += "\"zone\":"  + String(currentZone);
+    payload += "}}";
+    client.publish("smartplant/data", payload.c_str());
     Serial.println(payload);
   }
-  
 }

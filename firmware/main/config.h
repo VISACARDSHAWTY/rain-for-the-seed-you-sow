@@ -20,9 +20,9 @@
 
 int soilThreshold = 1500;
 int tempThreshold = 30;
-int lightThreshold = 2000;
-int waterMinLevel = 1000;
+int lightThreshold = 3000;
+int waterMinLevel = 300;
 
 bool autoMode = true;
 
-const char* mqtt_server = "192.168.1.104";
+const char* mqtt_server = "10.52.170.186";
