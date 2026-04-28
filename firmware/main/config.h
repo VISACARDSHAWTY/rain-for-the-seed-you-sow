@@ -25,4 +25,4 @@ int waterMinLevel = 300;
 
 bool autoMode = true;
 
-const char* mqtt_server = "10.52.170.186";
+const char* mqtt_server = "10.152.192.186";

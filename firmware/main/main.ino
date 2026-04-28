@@ -76,103 +76,78 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
-// ── MQTT ──────────────────────────────────────────────
+
 void callback(char* topic, byte* message, unsigned int length) {
-  String msg;
+  String msg = "";
   for (int i = 0; i < length; i++) {
     msg += (char)message[i];
   }
+  
+  msg.trim();                     // VERY IMPORTANT: remove whitespace/newlines
+  Serial.print("MQTT Received → ");
+  Serial.println(msg);            // Debug: you MUST see this
 
-  if (msg.indexOf("pump_on") >= 0) {
-    pumpState = true;
-  }
-
-  if (msg.indexOf("pump_off") >= 0) {
-    pumpState = false;
-  }
-
-  if (msg.indexOf("fan_on") >= 0) {
+  // ==================== FAN ====================
+  if (msg.equals("fan_on")) {
     fanState = true;
-  }
-
-  if (msg.indexOf("fan_off") >= 0) {
+    Serial.println("→ Fan TURNED ON");
+  } 
+  else if (msg.equals("fan_off")) {
     fanState = false;
+    Serial.println("→ Fan TURNED OFF");
   }
 
-  if (msg.indexOf("tent_open") >= 0) {
+  // ==================== TENT (SERVO) ====================
+  else if (msg.equals("tent_open")) {
     tentOpenState = true;
-  }
-
-  if (msg.indexOf("tent_close") >= 0) {
+    Serial.println("→ Tent OPENED");
+  } 
+  else if (msg.equals("tent_close")) {
     tentOpenState = false;
+    Serial.println("→ Tent CLOSED");
   }
 
-  if (msg.indexOf("pump_auto_on") >= 0) {
-    pumpAutoEnabled = true;
+  // ==================== PUMP (should already work) ====================
+  else if (msg.equals("pump_on")) {
+    pumpState = true;
+    Serial.println("→ Pump ON");
+  } 
+  else if (msg.equals("pump_off")) {
+    pumpState = false;
+    Serial.println("→ Pump OFF");
   }
 
-  if (msg.indexOf("pump_auto_off") >= 0) {
-    pumpAutoEnabled = false;
-  }
+  // ==================== AUTO MODES ====================
+  else if (msg.equals("pump_auto_on")) pumpAutoEnabled = true;
+  else if (msg.equals("pump_auto_off")) pumpAutoEnabled = false;
+  else if (msg.equals("fan_auto_on")) fanAutoEnabled = true;
+  else if (msg.equals("fan_auto_off")) fanAutoEnabled = false;
+  else if (msg.equals("tent_auto_on")) tentAutoEnabled = true;
+  else if (msg.equals("tent_auto_off")) tentAutoEnabled = false;
 
-  if (msg.indexOf("fan_auto_on") >= 0) {
-    fanAutoEnabled = true;
-  }
-
-  if (msg.indexOf("fan_auto_off") >= 0) {
-    fanAutoEnabled = false;
-  }
-
-  if (msg.indexOf("tent_auto_on") >= 0) {
-    tentAutoEnabled = true;
-  }
-
-  if (msg.indexOf("tent_auto_off") >= 0) {
-    tentAutoEnabled = false;
-  }
-
-  // Backward compatibility: old global auto commands toggle both.
-  if (msg.indexOf("auto_on") >= 0) {
-    pumpAutoEnabled = true;
-    fanAutoEnabled = true;
-    tentAutoEnabled = true;
-  }
-
-  if (msg.indexOf("auto_off") >= 0) {
-    pumpAutoEnabled = false;
-    fanAutoEnabled = false;
-    tentAutoEnabled = false;
-  }
-
-  if (msg.indexOf("water_zone_1") >= 0) {
-    manualWaterZone = 1;
-  }
-
-  if (msg.indexOf("water_zone_2") >= 0) {
-    manualWaterZone = 2;
-  }
-
-  if (msg.indexOf("water_stop") >= 0) {
+  // ==================== WATERING (already working) ====================
+  else if (msg.equals("water_zone_1")) manualWaterZone = 1;
+  else if (msg.equals("water_zone_2")) manualWaterZone = 2;
+  else if (msg.equals("water_stop")) {
     manualWaterZone = 0;
     pumpState = false;
   }
 
-  if (msg.indexOf("temp_threshold_") >= 0) {
-    int val = msg.substring(msg.indexOf("_") + 1).toInt();
-    if (val > 0) tempThreshold = val;
-    Serial.print("Temp threshold updated to: "); Serial.println(tempThreshold);
+  // ==================== THRESHOLDS ====================
+  else if (msg.startsWith("temp_threshold_")) {
+    int val = msg.substring(15).toInt();
+    if (val >= 15 && val <= 45) tempThreshold = val;
+    Serial.print("→ Temp threshold set to: "); Serial.println(tempThreshold);
   }
-
-  if (msg.indexOf("soil_threshold_") >= 0) {
-    int val = msg.substring(msg.indexOf("_") + 1).toInt();
-    if (val > 0) soilThreshold = val;
-    Serial.print("Soil threshold updated to: "); Serial.println(soilThreshold);
+  else if (msg.startsWith("soil_threshold_")) {
+    int val = msg.substring(15).toInt();
+    if (val >= 1000 && val <= 4000) soilThreshold = val;
+    Serial.print("→ Soil threshold set to: "); Serial.println(soilThreshold);
   }
-
-  if (msg.indexOf("light_threshold_") >= 0) {
-    int val = msg.substring(msg.indexOf("_") + 1).toInt();
-    if (val > 0) lightThreshold = val;
-    Serial.print("Light threshold updated to: "); Serial.println(lightThreshold);
+  else if (msg.startsWith("light_threshold_")) {
+    int val = msg.substring(16).toInt();
+    if (val >= 500 && val <= 3000) lightThreshold = val;
+    Serial.print("→ Light threshold set to: "); Serial.println(lightThreshold);
   }
 }
 
@@ -287,6 +262,9 @@ void loop() {
   }
 
   myServo.write(tentOpenState ? 80 : 0);
+  if (tentOpenState) {
+    Serial.println("LIght");
+  }
 
   if (manualWaterZone == 1 || manualWaterZone == 2) {
     if (currentZone != manualWaterZone) {

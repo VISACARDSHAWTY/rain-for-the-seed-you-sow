@@ -8,7 +8,7 @@ const telemetryEvents = new EventEmitter();
 let mqttClient = null;
 let lastTelemetry = null;
 
-const MQTT_URL = process.env.MQTT_URL || "mqtt://10.52.170.186:1883";
+const MQTT_URL = process.env.MQTT_URL || "mqtt://10.152.192.186:1883";
 const MQTT_DATA_TOPIC = process.env.MQTT_DATA_TOPIC || "smartplant/data";
 const MQTT_CONTROL_TOPIC = process.env.MQTT_CONTROL_TOPIC || "smartplant/control";
 
