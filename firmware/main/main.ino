@@ -216,15 +216,20 @@ if (autoMode) {
       bool soil1Dry = soil1 > soilThreshold;
       bool soil2Dry = soil2 > soilThreshold;
 
-      if (soil1Dry && waterLevel > waterMinLevel) {
-        moveToZone(1);
-        pumpState = true;
-      } else if (soil2Dry && waterLevel > waterMinLevel) {
-        moveToZone(2);
+      int targetZone = -1;
+      if (soil1Dry && waterLevel > waterMinLevel)       targetZone = 1;
+      else if (soil2Dry && waterLevel > waterMinLevel)  targetZone = 2;
+
+      if (targetZone != -1) {
+        if (targetZone != currentZone) {
+          digitalWrite(PUMP_PIN, LOW);
+          pumpState = false;
+          moveToZone(targetZone);
+        }
         pumpState = true;
       } else {
         pumpState = false;
-        digitalWrite(PUMP_PIN, LOW); 
+        digitalWrite(PUMP_PIN, LOW);
         moveToZone(0);
       }
     }
