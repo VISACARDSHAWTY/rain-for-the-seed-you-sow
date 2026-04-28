@@ -203,3 +203,60 @@ h2 {
 .switchInput:checked + .switchTrack::after {
   transform: translateX(22px);
 }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  background: rgba(15, 63, 37, 0.6);
+  border-radius: 12px;
+  padding: 6px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(144, 225, 167, 0.15);
+}
+
+.tab {
+  flex: 1;
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  color: #9de5be;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab.active {
+  background: linear-gradient(180deg, #2fb66b, #219a56);
+  color: white;
+  box-shadow: 0 4px 12px rgba(47, 182, 107, 0.3);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.history-table th,
+.history-table td {
+  padding: 12px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(144, 225, 167, 0.15);
+}
+
+.history-table th {
+  background: rgba(15, 63, 37, 0.8);
+  color: #cbf2d8;
+  font-weight: 600;
+}
+
+.tag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.tag.manual { background: #3d7bf0; color: white; }
+.tag.auto   { background: #2fb66b; color: #0b2f1e; }
