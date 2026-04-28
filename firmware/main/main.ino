@@ -156,6 +156,24 @@ void callback(char* topic, byte* message, unsigned int length) {
     manualWaterZone = 0;
     pumpState = false;
   }
+
+  if (msg.indexOf("temp_threshold_") >= 0) {
+    int val = msg.substring(msg.indexOf("_") + 1).toInt();
+    if (val > 0) tempThreshold = val;
+    Serial.print("Temp threshold updated to: "); Serial.println(tempThreshold);
+  }
+
+  if (msg.indexOf("soil_threshold_") >= 0) {
+    int val = msg.substring(msg.indexOf("_") + 1).toInt();
+    if (val > 0) soilThreshold = val;
+    Serial.print("Soil threshold updated to: "); Serial.println(soilThreshold);
+  }
+
+  if (msg.indexOf("light_threshold_") >= 0) {
+    int val = msg.substring(msg.indexOf("_") + 1).toInt();
+    if (val > 0) lightThreshold = val;
+    Serial.print("Light threshold updated to: "); Serial.println(lightThreshold);
+  }
 }
 
 void reconnect() {

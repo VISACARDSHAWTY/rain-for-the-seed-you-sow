@@ -48,7 +48,6 @@ function ToggleSwitch({ label, checked, onChange, disabled = false }) {
   );
 }
 
-// Helper Functions
 const getLightIcon = (lightValue) => {
   const hour = new Date().getHours();
   const isNight = hour < 6 || hour > 20;
@@ -90,9 +89,14 @@ export default function App() {
   const [hoverMoisture, setHoverMoisture] = useState(false);
   const [activeTab, setActiveTab] = useState("live");
 
+  const [thresholds, setThresholds] = useState({
+    tempThreshold: 28,
+    soilThreshold: 2500,
+    lightThreshold: 1500
+  });
+
   const state = useMemo(() => statePacket?.state || {}, [statePacket]);
 
-  // Refresh Live Sensors
   const refreshLive = async () => {
     try {
       const data = await apiGet("/api/iot/state");
@@ -100,18 +104,15 @@ export default function App() {
     } catch (e) { console.error(e); }
   };
 
-  // Fetch Next Watering Prediction
   const fetchPrediction = async () => {
     try {
       const data = await apiGet("/api/iot/predict-next-watering");
       setPrediction(data);
     } catch (e) {
-      console.error("Prediction fetch failed", e);
       setPrediction({ prediction: "Unable to predict at this time", confidence: "low" });
     }
   };
 
-  // Fetch History + Charts
   const fetchHistoryAndCharts = async () => {
     try {
       const [wateringRes, logsRes] = await Promise.all([
@@ -122,7 +123,6 @@ export default function App() {
       setWateringHistory(wateringRes);
       setSensorLogs(logsRes);
 
-      // 6-Hour Soil Moisture Line Chart
       const now = Date.now();
       const sixHoursAgo = now - 6 * 60 * 60 * 1000;
 
@@ -134,12 +134,9 @@ export default function App() {
           soilMoisture: ((log.sensors?.soil1 || 0) + (log.sensors?.soil2 || 0)) / 2
         }));
 
-      if (recentLogs.length === 0) {
-        recentLogs = [{ time: "No recent data", soilMoisture: null }];
-      }
+      if (recentLogs.length === 0) recentLogs = [{ time: "No recent data", soilMoisture: null }];
       setLineData(recentLogs);
 
-      // Last 5 Days Summary
       const dayMap = {};
       wateringRes.forEach(w => {
         const dateStr = new Date(w.timestamp).toISOString().split('T')[0];
@@ -164,7 +161,6 @@ export default function App() {
         d.setDate(d.getDate() - i);
         const dateStr = d.toISOString().split('T')[0];
         const dayInfo = dayMap[dateStr] || { date: dateStr, wateringCount: 0, tempSum: 0, tempCount: 0 };
-
         daily.push({
           day: formatShortDate(d),
           wateringCount: dayInfo.wateringCount,
@@ -172,7 +168,6 @@ export default function App() {
         });
       }
       setDailyData(daily);
-
     } catch (e) {
       console.error("Failed to fetch history", e);
     }
@@ -198,7 +193,7 @@ export default function App() {
     try {
       await fn();
       await refreshLive();
-      await fetchPrediction();        // Refresh prediction after any action
+      await fetchPrediction();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -206,13 +201,18 @@ export default function App() {
     }
   };
 
-  // Pagination for Sensor Logs
+  const updateThreshold = async (key, value) => {
+    try {
+      await apiPost(`/api/iot/threshold/${key}/${value}`);
+      setThresholds(prev => ({ ...prev, [key]: value }));
+    } catch (e) {
+      alert("Failed to update threshold on ESP32");
+    }
+  };
+
   const logsPerPage = 10;
   const totalSensorPages = Math.ceil(sensorLogs.length / logsPerPage);
-  const currentSensorLogs = sensorLogs.slice(
-    sensorPage * logsPerPage,
-    (sensorPage + 1) * logsPerPage
-  );
+  const currentSensorLogs = sensorLogs.slice(sensorPage * logsPerPage, (sensorPage + 1) * logsPerPage);
 
   const sensors = state?.sensors || {};
   const temp = sensors.temperature ?? NaN;
@@ -247,13 +247,12 @@ export default function App() {
           <button className={`tab ${activeTab === "history" ? "active" : ""}`} onClick={() => setActiveTab("history")}>History & Charts</button>
         </div>
 
-        {/* ====================== LIVE SENSORS TAB ====================== */}
+        {/* LIVE SENSORS */}
         {activeTab === "live" && (
           <>
             <section className="card">
               <h2>Live Sensors</h2>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px", marginTop: "12px" }}>
-                {/* Climate */}
                 <div style={{ textAlign: "center" }}>
                   <div style={{ fontSize: "2.8rem", fontWeight: "600" }}>{isNaN(temp) ? "—" : `${Math.round(temp)}°`}</div>
                   <div style={{ fontSize: "1.15rem", color: "#9de5be", marginTop: "4px" }}>{isNaN(humidity) ? "—" : `${Math.round(humidity)}%`} humidity</div>
@@ -261,7 +260,6 @@ export default function App() {
                   <div style={{ fontSize: "0.95rem", opacity: 0.8 }}>Light</div>
                 </div>
 
-                {/* Soil Moisture */}
                 <div style={{ textAlign: "center", cursor: "pointer" }} onMouseEnter={() => setHoverMoisture(true)} onMouseLeave={() => setHoverMoisture(false)}>
                   <div style={{ fontSize: "4.8rem", lineHeight: 1, marginBottom: "12px" }}>💧</div>
                   <div style={{ fontSize: "1.25rem", fontWeight: "700", color: avgMoistureLevel > 7 ? "#67d18f" : avgMoistureLevel > 4 ? "#f4c542" : "#ff8a65" }}>Soil Moisture</div>
@@ -279,7 +277,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Water Tank */}
                 <div style={{ textAlign: "center" }}>
                   <div style={{ fontSize: "2.4rem", marginBottom: "12px" }}>🪣</div>
                   <div style={{ display: "flex", justifyContent: "center", gap: "8px", margin: "12px 0" }}>
@@ -293,10 +290,9 @@ export default function App() {
               </div>
             </section>
 
-            
             {prediction && (
               <section className="card">
-                <h2> Next Watering Prediction</h2>
+                <h2>🌱 Next Watering Prediction</h2>
                 <div style={{ textAlign: "center", padding: "24px 0" }}>
                   <div style={{ fontSize: "2.6rem", fontWeight: "700", color: "#67d18f", marginBottom: "8px" }}>
                     {prediction.hoursUntil ? `${prediction.hoursUntil} hours` : "—"}
@@ -304,11 +300,7 @@ export default function App() {
                   <div style={{ fontSize: "1.15rem", color: "#cbf2d8" }}>
                     {prediction.prediction}
                   </div>
-                  {prediction.reason && (
-                    <p style={{ marginTop: "16px", fontSize: "0.95rem", opacity: 0.9 }}>
-                      {prediction.reason}
-                    </p>
-                  )}
+                  {prediction.reason && <p style={{ marginTop: "16px", fontSize: "0.95rem", opacity: 0.9 }}>{prediction.reason}</p>}
                   <div style={{ marginTop: "12px", fontSize: "0.95rem", color: prediction.confidence === "high" ? "#4ade80" : "#f4c542" }}>
                     Confidence: <strong>{(prediction.confidence || "medium").toUpperCase()}</strong>
                   </div>
@@ -318,7 +310,7 @@ export default function App() {
           </>
         )}
 
-        {/* ====================== CONTROLS TAB ====================== */}
+        {/* CONTROLS TAB */}
         {activeTab === "controls" && (
           <>
             <section className="card">
@@ -462,12 +454,47 @@ export default function App() {
       <div className={`overlay ${showAutoPanel ? "show" : ""}`} onClick={() => setShowAutoPanel(false)} />
       <aside className={`autoPanel ${showAutoPanel ? "show" : ""}`}>
         <div className="autoHeader">
-          <h3>Auto Modes</h3>
+          <h3>Auto Modes & Thresholds</h3>
           <button type="button" className="closePanel" onClick={() => setShowAutoPanel(false)}>×</button>
         </div>
+
         <ToggleSwitch label="Pump Auto" checked={!!state?.actuators?.pump?.autoEnabled} onChange={v => doAction(() => apiPost(`/api/iot/actuators/pump/auto/${v ? "on" : "off"}`))} disabled={loading} />
         <ToggleSwitch label="Fan Auto" checked={!!state?.actuators?.fan?.autoEnabled} onChange={v => doAction(() => apiPost(`/api/iot/actuators/fan/auto/${v ? "on" : "off"}`))} disabled={loading} />
         <ToggleSwitch label="Tent Auto" checked={!!state?.actuators?.tent?.autoEnabled} onChange={v => doAction(() => apiPost(`/api/iot/actuators/tent/auto/${v ? "on" : "off"}`))} disabled={loading} />
+
+        <div style={{ marginTop: "25px", borderTop: "1px solid rgba(144, 225, 167, 0.25)", paddingTop: "18px" }}>
+          <h4>Threshold Settings</h4>
+
+          <div style={{ margin: "16px 0" }}>
+            <label>Fan Activation Temperature: <strong>{thresholds.tempThreshold}°C</strong></label>
+            <input 
+              type="range" 
+              min="20" max="40" 
+              value={thresholds.tempThreshold} 
+              onChange={(e) => updateThreshold("tempThreshold", parseInt(e.target.value))} 
+            />
+          </div>
+
+          <div style={{ margin: "16px 0" }}>
+            <label>Soil Dry Threshold: <strong>{thresholds.soilThreshold}</strong></label>
+            <input 
+              type="range" 
+              min="1500" max="3200" step="50" 
+              value={thresholds.soilThreshold} 
+              onChange={(e) => updateThreshold("soilThreshold", parseInt(e.target.value))} 
+            />
+          </div>
+
+          <div style={{ margin: "16px 0" }}>
+            <label>Tent Open Light Threshold: <strong>{thresholds.lightThreshold}</strong></label>
+            <input 
+              type="range" 
+              min="800" max="2500" step="50" 
+              value={thresholds.lightThreshold} 
+              onChange={(e) => updateThreshold("lightThreshold", parseInt(e.target.value))} 
+            />
+          </div>
+        </div>
       </aside>
     </>
   );

@@ -153,6 +153,46 @@ exports.getSensorLogs = async (req, res) => {
   }
 };
 
+exports.setThreshold = (req, res) => {
+  try {
+    const { type } = req.params;        // tempThreshold, soilThreshold, lightThreshold
+    const value = parseInt(req.params.value);
+
+    if (!["tempThreshold", "soilThreshold", "lightThreshold"].includes(type)) {
+      return res.status(400).json({ error: "Invalid threshold type" });
+    }
+
+    if (isNaN(value)) {
+      return res.status(400).json({ error: "Invalid value" });
+    }
+
+    let command = "";
+
+    switch (type) {
+      case "tempThreshold":
+        command = `temp_threshold_${value}`;
+        break;
+      case "soilThreshold":
+        command = `soil_threshold_${value}`;
+        break;
+      case "lightThreshold":
+        command = `light_threshold_${value}`;
+        break;
+    }
+
+    const published = publishControl(command);
+
+    return res.json({
+      ok: true,
+      command,
+      published,
+      message: `${type} updated to ${value}`
+    });
+
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
 
 exports.attachSse = (app) => {
   const clients = new Set();
