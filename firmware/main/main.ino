@@ -205,12 +205,12 @@ void loop() {
   int waterLevel = analogRead(WATER_LEVEL_PIN);
   int flame      = digitalRead(FLAME_PIN);
 
-  buzzerState = (flame == HIGH);
+  buzzerState = (flame == LOW);
 
-  if (autoMode) {
+if (autoMode) {
     if (fanSource == "auto") fanState = (!isnan(temp) && temp > tempThreshold);
 
-    myServo.write(light > lightThreshold ? 90 : 0);
+    myServo.write(light > lightThreshold ? 80 : 0);
 
     if (pumpSource == "auto") {
       bool soil1Dry = soil1 > soilThreshold;
@@ -224,10 +224,12 @@ void loop() {
         pumpState = true;
       } else {
         pumpState = false;
+        digitalWrite(PUMP_PIN, LOW); 
         moveToZone(0);
       }
     }
   }
+
 
   digitalWrite(PUMP_PIN,   pumpState   ? HIGH : LOW);
   digitalWrite(FAN_PIN,    fanState    ? HIGH : LOW);

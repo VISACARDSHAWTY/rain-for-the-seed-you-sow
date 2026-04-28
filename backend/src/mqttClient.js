@@ -1,46 +1,72 @@
 const mongoose = require("mongoose");
 const mqtt = require("mqtt");
+const { EventEmitter } = require("events");
 const Log = require("../models/Log");
 
-const MQTT_URL = "mqtt://10.52.170.186:1883";
-const MQTT_TOPIC = "smartplant/data";
+const telemetryEvents = new EventEmitter();
+
+let mqttClient = null;
+let lastTelemetry = null;
+
+const MQTT_URL = process.env.MQTT_URL || "mqtt://10.52.170.186:1883";
+const MQTT_DATA_TOPIC = process.env.MQTT_DATA_TOPIC || "smartplant/data";
+const MQTT_CONTROL_TOPIC = process.env.MQTT_CONTROL_TOPIC || "smartplant/control";
 
 const initMqttClient = () => {
-  const client = mqtt.connect(MQTT_URL);
+  if (mqttClient) return mqttClient;
 
-  client.on("connect", () => {
-    console.log("✓ MQTT connected");
-    client.subscribe(MQTT_TOPIC, (err) => {
+  mqttClient = mqtt.connect(MQTT_URL);
+
+  mqttClient.on("connect", () => {
+    console.log("✓ MQTT connected:", MQTT_URL);
+    mqttClient.subscribe(MQTT_DATA_TOPIC, (err) => {
       if (err) console.log("✗ Subscribe error:", err.message);
-      else console.log(`✓ Subscribed to ${MQTT_TOPIC}`);
+      else console.log(`✓ Subscribed to ${MQTT_DATA_TOPIC}`);
     });
   });
 
-  client.on("error", (err) => {
+  mqttClient.on("reconnect", () => {
+    console.log("… MQTT reconnecting");
+  });
+
+  mqttClient.on("error", (err) => {
     console.log("✗ MQTT Error:", err.message);
   });
 
-  client.on("disconnect", () => {
-    console.log("✗ MQTT disconnected");
+  mqttClient.on("close", () => {
+    console.log("✗ MQTT connection closed");
   });
 
-  client.on("message", async (topic, message) => {
+  mqttClient.on("message", async (topic, message) => {
     try {
-      if (mongoose.connection.readyState !== 1) {
-        console.log("✗ MongoDB not ready; skipping MQTT message");
-        return;
-      }
-
       const raw = message.toString();
       const data = JSON.parse(raw);
-      await Log.create(data);
-      console.log(`✓ Data saved to DB from ${topic}`);
+      lastTelemetry = { topic, receivedAt: new Date().toISOString(), ...data };
+
+      telemetryEvents.emit("telemetry", lastTelemetry);
+
+      if (mongoose.connection.readyState === 1) {
+        await Log.create(data);
+      }
     } catch (err) {
-      console.log("✗ Error saving data:", err.message);
+      console.log("✗ Error handling MQTT message:", err.message);
     }
   });
 
-  return client;
+  return mqttClient;
 };
 
-module.exports = initMqttClient;
+const publishControl = (command) => {
+  if (!mqttClient) throw new Error("MQTT client not initialized");
+  const payload = String(command);
+  mqttClient.publish(MQTT_CONTROL_TOPIC, payload);
+  return { topic: MQTT_CONTROL_TOPIC, payload };
+};
+
+const getLastTelemetry = () => lastTelemetry;
+const onTelemetry = (handler) => {
+  telemetryEvents.on("telemetry", handler);
+  return () => telemetryEvents.off("telemetry", handler);
+};
+
+module.exports = { initMqttClient, publishControl, getLastTelemetry, onTelemetry };
