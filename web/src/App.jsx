@@ -59,17 +59,17 @@ const getLightIcon = (lightValue) => {
 };
 
 const getMoistureLevel = (soilValue) => {
-  const clamped = Math.max(600, Math.min(3900, soilValue));
-  const level = Math.floor(((clamped - 600) / (3900 - 600)) * 12);
+  const clamped = Math.max(1100, Math.min(3400, soilValue));
+  const level = Math.floor(((clamped - 1100) / (3400 - 1100)) * 12);
   return 12 - level;
 };
 
 const getWaterTankBars = (waterLevel) => {
   const clamped = Math.max(0, Math.min(4095, waterLevel));
-  if (clamped > 3400) return 4;
-  if (clamped > 2500) return 3;
-  if (clamped > 1500) return 2;
-  if (clamped > 600) return 1;
+  if (clamped > 1550) return 4;
+  if (clamped > 1400) return 3;
+  if (clamped > 1100) return 2;
+  if (clamped > 900) return 1;
   return 0;
 };
 

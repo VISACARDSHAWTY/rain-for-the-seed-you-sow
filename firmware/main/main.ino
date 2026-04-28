@@ -25,6 +25,10 @@ unsigned long lastPublish = 0;
 unsigned long lastDHTRead = 0;
 float temp = NAN, humidity = NAN;
 
+const int soilHysteresis = 50;
+bool soil1DryState = false;
+bool soil2DryState = false;
+
 // ── WiFi ──────────────────────────────────────────────
 void setup_wifi() {
   Serial.println("Connecting to WiFi...");
@@ -274,9 +278,20 @@ void loop() {
     }
     pumpState = (waterLevel > waterMinLevel);
   } else if (pumpAutoEnabled) {
-    bool soil1Dry = soil1 > soilThreshold;
-    bool soil2Dry = soil2 > soilThreshold;
+    
+    if (soil1 > soilThreshold + soilHysteresis) {
+      soil1DryState = true;
+    } else if (soil1 < soilThreshold - soilHysteresis) {
+      soil1DryState = false;
+    }
 
+    if (soil2 > soilThreshold + soilHysteresis) {
+      soil2DryState = true;
+    } else if (soil2 < soilThreshold - soilHysteresis) {
+      soil2DryState = false;
+    }
+    bool soil1Dry = soil1DryState;
+    bool soil2Dry = soil2DryState;
     int targetZone = -1;
     if (soil1Dry && waterLevel > waterMinLevel)       targetZone = 1;
     else if (soil2Dry && waterLevel > waterMinLevel)  targetZone = 2;

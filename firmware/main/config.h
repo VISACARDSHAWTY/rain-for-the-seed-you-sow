@@ -18,7 +18,7 @@
 #define IN3 21
 #define IN4 22
 
-int soilThreshold = 1500;
+int soilThreshold = 2200;
 int tempThreshold = 30;
 int lightThreshold = 3000;
 int waterMinLevel = 300;
