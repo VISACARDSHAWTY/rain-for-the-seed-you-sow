@@ -7,7 +7,8 @@ const {
   setAutoMode,
   setActuatorAuto,
   startWaterZone,
-  stopWaterZone
+  stopWaterZone,
+  setTentState
 } = require("../controllers/iotController");
 
 router.get("/state", getLatestState);
@@ -33,6 +34,8 @@ router.post("/actuators/:name/auto/off", (req, res) =>
 
 router.post("/water/zone/:zone", startWaterZone);
 router.post("/water/stop", stopWaterZone);
+router.post("/tent/open", (req, res) => setTentState(req, res, { state: "open" }));
+router.post("/tent/close", (req, res) => setTentState(req, res, { state: "close" }));
 
 module.exports = router;
 

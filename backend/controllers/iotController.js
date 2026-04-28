@@ -2,7 +2,7 @@ const Log = require("../models/Log");
 const { publishControl, getLastTelemetry, onTelemetry } = require("../src/mqttClient");
 
 const VALID_ACTUATORS = new Set(["pump", "fan", "buzzer"]);
-const AUTO_TOGGLE_ACTUATORS = new Set(["pump", "fan"]);
+const AUTO_TOGGLE_ACTUATORS = new Set(["pump", "fan", "tent"]);
 
 exports.getLatestState = async (req, res) => {
   try {
@@ -39,6 +39,19 @@ exports.setActuatorState = (req, res, { state }) => {
 exports.setAutoMode = (req, res, { state }) => {
   try {
     const command = state === "on" ? "auto_on" : "auto_off";
+    const published = publishControl(command);
+    return res.json({ ok: true, command, published });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.setTentState = (req, res, { state }) => {
+  try {
+    if (state !== "open" && state !== "close") {
+      return res.status(400).json({ error: "Invalid tent state" });
+    }
+    const command = state === "open" ? "tent_open" : "tent_close";
     const published = publishControl(command);
     return res.json({ ok: true, command, published });
   } catch (err) {

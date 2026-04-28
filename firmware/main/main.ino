@@ -17,6 +17,8 @@ bool fanState    = false;
 bool buzzerState = false;
 bool pumpAutoEnabled = true;
 bool fanAutoEnabled = true;
+bool tentAutoEnabled = true;
+bool tentOpenState = false;
 int manualWaterZone = 0;
 
 unsigned long lastPublish = 0;
@@ -93,6 +95,14 @@ void callback(char* topic, byte* message, unsigned int length) {
     fanState = false;
   }
 
+  if (msg.indexOf("tent_open") >= 0) {
+    tentOpenState = true;
+  }
+
+  if (msg.indexOf("tent_close") >= 0) {
+    tentOpenState = false;
+  }
+
   if (msg.indexOf("pump_auto_on") >= 0) {
     pumpAutoEnabled = true;
   }
@@ -109,15 +119,25 @@ void callback(char* topic, byte* message, unsigned int length) {
     fanAutoEnabled = false;
   }
 
+  if (msg.indexOf("tent_auto_on") >= 0) {
+    tentAutoEnabled = true;
+  }
+
+  if (msg.indexOf("tent_auto_off") >= 0) {
+    tentAutoEnabled = false;
+  }
+
   // Backward compatibility: old global auto commands toggle both.
   if (msg.indexOf("auto_on") >= 0) {
     pumpAutoEnabled = true;
     fanAutoEnabled = true;
+    tentAutoEnabled = true;
   }
 
   if (msg.indexOf("auto_off") >= 0) {
     pumpAutoEnabled = false;
     fanAutoEnabled = false;
+    tentAutoEnabled = false;
   }
 
   if (msg.indexOf("water_zone_1") >= 0) {
@@ -240,7 +260,11 @@ void loop() {
     fanState = (!isnan(temp) && temp > tempThreshold);
   }
 
-  myServo.write(light > lightThreshold ? 80 : 0);
+  if (tentAutoEnabled) {
+    tentOpenState = light > lightThreshold;
+  }
+
+  myServo.write(tentOpenState ? 80 : 0);
 
   if (manualWaterZone == 1 || manualWaterZone == 2) {
     if (currentZone != manualWaterZone) {
@@ -288,6 +312,7 @@ void loop() {
     payload += "},\"actuators\":{";
     payload += "\"pump\":{\"state\":" + String(pumpState ? "true":"false") + ",\"autoEnabled\":" + String(pumpAutoEnabled ? "true":"false") + "},";
     payload += "\"fan\":{\"state\":" + String(fanState ? "true":"false") + ",\"autoEnabled\":" + String(fanAutoEnabled ? "true":"false") + "},";
+    payload += "\"tent\":{\"state\":" + String(tentOpenState ? "true":"false") + ",\"autoEnabled\":" + String(tentAutoEnabled ? "true":"false") + "},";
     payload += "\"buzzer\":{\"state\":" + String(buzzerState ? "true":"false") + "},";
     payload += "\"manualWaterZone\":" + String(manualWaterZone) + ",";
     payload += "\"zone\":"  + String(currentZone);

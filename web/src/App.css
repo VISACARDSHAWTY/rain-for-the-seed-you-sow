@@ -1,5 +1,5 @@
 .page {
-  max-width: 760px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 24px;
   display: grid;
@@ -7,10 +7,11 @@
 }
 
 .card {
-  background: #12182b;
-  border: 1px solid #202943;
-  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(17, 65, 34, 0.78), rgba(13, 47, 31, 0.75));
+  border: 1px solid rgba(144, 225, 167, 0.22);
+  border-radius: 16px;
   padding: 16px;
+  box-shadow: 0 10px 28px rgba(8, 42, 24, 0.35);
 }
 
 h1,
@@ -18,21 +19,33 @@ h2 {
   margin: 0 0 10px;
 }
 
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
 .muted {
-  color: #97a4ce;
+  color: #cbf2d8;
   margin: 0;
+}
+
+.apiHint {
+  color: #9de5be;
+  margin: 8px 0 0;
 }
 
 .error {
   margin-top: 10px;
-  color: #ff9ca0;
+  color: #ffd5d7;
 }
 
 .row {
   display: flex;
   justify-content: space-between;
-  padding: 6px 0;
-  border-bottom: 1px dashed #263258;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(146, 219, 166, 0.28);
 }
 
 .row:last-child {
@@ -47,11 +60,17 @@ h2 {
 
 .btn {
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 12px;
   font-weight: 700;
   cursor: pointer;
   color: #fff;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
 }
 
 .btn:disabled {
@@ -60,13 +79,127 @@ h2 {
 }
 
 .btn.primary {
-  background: #3e63ff;
+  background: linear-gradient(180deg, #2fb66b, #219a56);
 }
 
 .btn.secondary {
-  background: #2d3554;
+  background: linear-gradient(180deg, #2f5a45, #224635);
 }
 
 .btn.danger {
-  background: #e5484d;
+  background: linear-gradient(180deg, #3d7bf0, #2f67cf);
+}
+
+.autoPanelButton {
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #8be6ac, #64cc89);
+  color: #0b2f1e;
+  font-weight: 800;
+  padding: 11px 18px;
+  cursor: pointer;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 20, 10, 0.48);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.autoPanel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(340px, 100%);
+  height: 100vh;
+  padding: 20px 16px;
+  background: linear-gradient(180deg, #0f3f25, #0b2e1f);
+  border-left: 1px solid rgba(150, 223, 171, 0.34);
+  box-shadow: -12px 0 34px rgba(0, 0, 0, 0.3);
+  transform: translateX(102%);
+  transition: transform 0.22s ease;
+  z-index: 20;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.autoPanel.show {
+  transform: translateX(0);
+}
+
+.autoHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.autoHeader h3 {
+  margin: 0;
+}
+
+.closePanel {
+  border: 0;
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  font-size: 22px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  cursor: pointer;
+}
+
+.switchRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  background: rgba(236, 255, 243, 0.08);
+  border: 1px solid rgba(136, 227, 168, 0.28);
+  border-radius: 12px;
+  padding: 10px 12px;
+  position: relative;
+}
+
+.switchInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.switchTrack {
+  width: 48px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  position: relative;
+  transition: background 0.18s ease;
+}
+
+.switchTrack::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.18s ease;
+}
+
+.switchInput:checked + .switchTrack {
+  background: #67d18f;
+}
+
+.switchInput:checked + .switchTrack::after {
+  transform: translateX(22px);
 }
