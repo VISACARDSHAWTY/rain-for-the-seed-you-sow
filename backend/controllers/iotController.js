@@ -182,3 +182,74 @@ exports.attachSse = (app) => {
   });
 };
 
+
+
+
+exports.predictNextWatering = async (req, res) => {
+  try {
+    const logs = await Log.find().sort({ timestamp: -1 }).limit(100).lean();
+    const waterings = await WateringEvent.find().sort({ timestamp: -1 }).limit(20).lean();
+
+    if (logs.length < 10) {
+      return res.json({
+        prediction: "Not enough data yet",
+        confidence: "low",
+        hoursUntil: null,
+        reason: "Insufficient historical data"
+      });
+    }
+
+    
+    const sortedLogs = logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    
+    let totalSoil = 0;
+    let dryingRateSum = 0;
+    let count = 0;
+
+    for (let i = 1; i < sortedLogs.length; i++) {
+      const prev = sortedLogs[i - 1];
+      const curr = sortedLogs[i];
+
+      const avgSoilPrev = (prev.sensors.soil1 + prev.sensors.soil2) / 2;
+      const avgSoilCurr = (curr.sensors.soil1 + curr.sensors.soil2) / 2;
+      const timeDiffHours = (new Date(curr.timestamp) - new Date(prev.timestamp)) / (1000 * 60 * 60);
+
+      if (timeDiffHours > 0 && timeDiffHours < 12) { // reasonable interval
+        totalSoil += avgSoilCurr;
+        dryingRateSum += (avgSoilPrev - avgSoilCurr) / timeDiffHours; // moisture loss per hour
+        count++;
+      }
+    }
+
+    const avgSoilMoisture = totalSoil / count || 2000;
+    const avgDryingRate = dryingRateSum / count || 50; // moisture units per hour
+
+    const soilThreshold = 2500; // when we usually water
+
+    let hoursUntilWatering = Math.max(1, Math.round((avgSoilMoisture - soilThreshold) / avgDryingRate));
+
+    // Adjust based on recent watering and temperature
+    const lastWatering = waterings[0];
+    const recentTemp = sortedLogs[sortedLogs.length - 1]?.sensors.temperature || 25;
+
+    if (recentTemp > 30) hoursUntilWatering = Math.round(hoursUntilWatering * 0.7); // hotter = faster drying
+    if (lastWatering && (Date.now() - new Date(lastWatering.timestamp)) < 12 * 60 * 60 * 1000) {
+      hoursUntilWatering = Math.max(8, hoursUntilWatering); // don't water too soon after last
+    }
+
+    const predictedTime = new Date(Date.now() + hoursUntilWatering * 60 * 60 * 1000);
+
+    res.json({
+      prediction: predictedTime.toLocaleString(),
+      hoursUntil: hoursUntilWatering,
+      confidence: hoursUntilWatering > 48 ? "medium" : "high",
+      currentAvgSoil: Math.round(avgSoilMoisture),
+      avgDryingRate: Math.round(avgDryingRate),
+      reason: `Based on current moisture (${Math.round(avgSoilMoisture)}) and drying rate (${Math.round(avgDryingRate)}/hour)`
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

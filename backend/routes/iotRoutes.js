@@ -10,7 +10,8 @@ const {
   stopWaterZone,
   setTentState,
   getWateringHistory,
-  getSensorLogs
+  getSensorLogs,
+  predictNextWatering
 } = require("../controllers/iotController");
 
 router.get("/state", getLatestState);
@@ -40,5 +41,6 @@ router.post("/tent/open", (req, res) => setTentState(req, res, { state: "open" }
 router.post("/tent/close", (req, res) => setTentState(req, res, { state: "close" }));
 router.get("/logs/sensor", getSensorLogs);
 router.get("/logs/watering", getWateringHistory);
+router.get("/predict-next-watering", predictNextWatering);
 module.exports = router;
 
