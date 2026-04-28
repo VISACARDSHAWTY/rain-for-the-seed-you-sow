@@ -4,7 +4,10 @@ const router = express.Router();
 const {
   getLatestState,
   setActuatorState,
-  setAutoMode
+  setAutoMode,
+  setActuatorAuto,
+  startWaterZone,
+  stopWaterZone
 } = require("../controllers/iotController");
 
 router.get("/state", getLatestState);
@@ -20,6 +23,16 @@ router.post("/auto/on", (req, res) => setAutoMode(req, res, { state: "on" }));
 router.post("/auto/off", (req, res) =>
   setAutoMode(req, res, { state: "off" })
 );
+
+router.post("/actuators/:name/auto/on", (req, res) =>
+  setActuatorAuto(req, res, { state: "on" })
+);
+router.post("/actuators/:name/auto/off", (req, res) =>
+  setActuatorAuto(req, res, { state: "off" })
+);
+
+router.post("/water/zone/:zone", startWaterZone);
+router.post("/water/stop", stopWaterZone);
 
 module.exports = router;
 

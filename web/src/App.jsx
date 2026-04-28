@@ -85,20 +85,32 @@ export default function App() {
         <div className="row">
           <span>Pump</span>
           <strong>
-            {state?.actuators?.pump?.state ? "ON" : "OFF"} (
-            {state?.actuators?.pump?.source || "?"})
+            {state?.actuators?.pump?.state ? "ON" : "OFF"} | auto:{" "}
+            {state?.actuators?.pump?.autoEnabled ? "ON" : "OFF"}
           </strong>
         </div>
         <div className="row">
           <span>Fan</span>
           <strong>
-            {state?.actuators?.fan?.state ? "ON" : "OFF"} (
-            {state?.actuators?.fan?.source || "?"})
+            {state?.actuators?.fan?.state ? "ON" : "OFF"} | auto:{" "}
+            {state?.actuators?.fan?.autoEnabled ? "ON" : "OFF"}
           </strong>
         </div>
         <div className="row">
           <span>Buzzer</span>
           <strong>{state?.actuators?.buzzer?.state ? "ON" : "OFF"}</strong>
+        </div>
+        <div className="row">
+          <span>Water mode</span>
+          <strong>
+            {state?.actuators?.manualWaterZone
+              ? `Zone ${state?.actuators?.manualWaterZone}`
+              : "Auto/Idle"}
+          </strong>
+        </div>
+        <div className="row">
+          <span>Current zone</span>
+          <strong>{state?.actuators?.zone ?? "?"}</strong>
         </div>
       </section>
 
@@ -117,6 +129,17 @@ export default function App() {
             disabled={loading}
           />
           <ActionButton
+            label="Pump Auto ON"
+            onClick={() => doAction(() => apiPost("/api/iot/actuators/pump/auto/on"))}
+            disabled={loading}
+          />
+          <ActionButton
+            label="Pump Auto OFF"
+            onClick={() => doAction(() => apiPost("/api/iot/actuators/pump/auto/off"))}
+            variant="secondary"
+            disabled={loading}
+          />
+          <ActionButton
             label="Fan ON"
             onClick={() => doAction(() => apiPost("/api/iot/actuators/fan/on"))}
             disabled={loading}
@@ -128,14 +151,30 @@ export default function App() {
             disabled={loading}
           />
           <ActionButton
-            label="Auto ON"
-            onClick={() => doAction(() => apiPost("/api/iot/auto/on"))}
+            label="Fan Auto ON"
+            onClick={() => doAction(() => apiPost("/api/iot/actuators/fan/auto/on"))}
             disabled={loading}
           />
           <ActionButton
-            label="Auto OFF"
-            onClick={() => doAction(() => apiPost("/api/iot/auto/off"))}
+            label="Fan Auto OFF"
+            onClick={() => doAction(() => apiPost("/api/iot/actuators/fan/auto/off"))}
             variant="danger"
+            disabled={loading}
+          />
+          <ActionButton
+            label="Water Zone 1"
+            onClick={() => doAction(() => apiPost("/api/iot/water/zone/1"))}
+            disabled={loading}
+          />
+          <ActionButton
+            label="Water Zone 2"
+            onClick={() => doAction(() => apiPost("/api/iot/water/zone/2"))}
+            disabled={loading}
+          />
+          <ActionButton
+            label="Stop Watering"
+            onClick={() => doAction(() => apiPost("/api/iot/water/stop"))}
+            variant="secondary"
             disabled={loading}
           />
         </div>

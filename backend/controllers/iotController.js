@@ -2,6 +2,7 @@ const Log = require("../models/Log");
 const { publishControl, getLastTelemetry, onTelemetry } = require("../src/mqttClient");
 
 const VALID_ACTUATORS = new Set(["pump", "fan", "buzzer"]);
+const AUTO_TOGGLE_ACTUATORS = new Set(["pump", "fan"]);
 
 exports.getLatestState = async (req, res) => {
   try {
@@ -38,6 +39,49 @@ exports.setActuatorState = (req, res, { state }) => {
 exports.setAutoMode = (req, res, { state }) => {
   try {
     const command = state === "on" ? "auto_on" : "auto_off";
+    const published = publishControl(command);
+    return res.json({ ok: true, command, published });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.setActuatorAuto = (req, res, { state }) => {
+  try {
+    const name = String(req.params.name || "").toLowerCase();
+    if (!AUTO_TOGGLE_ACTUATORS.has(name)) {
+      return res.status(400).json({ error: `Auto toggle not supported for actuator: ${name}` });
+    }
+    if (state !== "on" && state !== "off") {
+      return res.status(400).json({ error: "Invalid state" });
+    }
+
+    const command = `${name}_auto_${state}`;
+    const published = publishControl(command);
+    return res.json({ ok: true, command, published });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.startWaterZone = (req, res) => {
+  try {
+    const zone = Number(req.params.zone);
+    if (zone !== 1 && zone !== 2) {
+      return res.status(400).json({ error: "Zone must be 1 or 2" });
+    }
+
+    const command = `water_zone_${zone}`;
+    const published = publishControl(command);
+    return res.json({ ok: true, command, published });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.stopWaterZone = (req, res) => {
+  try {
+    const command = "water_stop";
     const published = publishControl(command);
     return res.json({ ok: true, command, published });
   } catch (err) {

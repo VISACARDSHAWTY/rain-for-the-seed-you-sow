@@ -3,7 +3,7 @@
 
 
 #define STEPS_PER_REV 2048
-#define STEPS_100DEG 235
+#define STEPS_100DEG 200
 
 
 Stepper myStepper(STEPS_PER_REV, IN1, IN3, IN2, IN4);

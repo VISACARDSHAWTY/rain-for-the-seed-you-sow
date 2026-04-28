@@ -15,8 +15,9 @@ PubSubClient client(espClient);
 bool pumpState   = false;
 bool fanState    = false;
 bool buzzerState = false;
-String pumpSource = "auto";
-String fanSource  = "auto";
+bool pumpAutoEnabled = true;
+bool fanAutoEnabled = true;
+int manualWaterZone = 0;
 
 unsigned long lastPublish = 0;
 unsigned long lastDHTRead = 0;
@@ -78,30 +79,58 @@ void callback(char* topic, byte* message, unsigned int length) {
 
   if (msg.indexOf("pump_on") >= 0) {
     pumpState = true;
-    pumpSource = "manual";
   }
 
   if (msg.indexOf("pump_off") >= 0) {
     pumpState = false;
-    pumpSource = "manual";
   }
 
   if (msg.indexOf("fan_on") >= 0) {
     fanState = true;
-    fanSource = "manual";
   }
 
   if (msg.indexOf("fan_off") >= 0) {
     fanState = false;
-    fanSource = "manual";
   }
 
+  if (msg.indexOf("pump_auto_on") >= 0) {
+    pumpAutoEnabled = true;
+  }
+
+  if (msg.indexOf("pump_auto_off") >= 0) {
+    pumpAutoEnabled = false;
+  }
+
+  if (msg.indexOf("fan_auto_on") >= 0) {
+    fanAutoEnabled = true;
+  }
+
+  if (msg.indexOf("fan_auto_off") >= 0) {
+    fanAutoEnabled = false;
+  }
+
+  // Backward compatibility: old global auto commands toggle both.
   if (msg.indexOf("auto_on") >= 0) {
-    autoMode = true;
+    pumpAutoEnabled = true;
+    fanAutoEnabled = true;
   }
 
   if (msg.indexOf("auto_off") >= 0) {
-    autoMode = false;
+    pumpAutoEnabled = false;
+    fanAutoEnabled = false;
+  }
+
+  if (msg.indexOf("water_zone_1") >= 0) {
+    manualWaterZone = 1;
+  }
+
+  if (msg.indexOf("water_zone_2") >= 0) {
+    manualWaterZone = 2;
+  }
+
+  if (msg.indexOf("water_stop") >= 0) {
+    manualWaterZone = 0;
+    pumpState = false;
   }
 }
 
@@ -207,31 +236,38 @@ void loop() {
 
   buzzerState = (flame == LOW);
 
-if (autoMode) {
-    if (fanSource == "auto") fanState = (!isnan(temp) && temp > tempThreshold);
+  if (fanAutoEnabled) {
+    fanState = (!isnan(temp) && temp > tempThreshold);
+  }
 
-    myServo.write(light > lightThreshold ? 80 : 0);
+  myServo.write(light > lightThreshold ? 80 : 0);
 
-    if (pumpSource == "auto") {
-      bool soil1Dry = soil1 > soilThreshold;
-      bool soil2Dry = soil2 > soilThreshold;
+  if (manualWaterZone == 1 || manualWaterZone == 2) {
+    if (currentZone != manualWaterZone) {
+      digitalWrite(PUMP_PIN, LOW);
+      pumpState = false;
+      moveToZone(manualWaterZone);
+    }
+    pumpState = (waterLevel > waterMinLevel);
+  } else if (pumpAutoEnabled) {
+    bool soil1Dry = soil1 > soilThreshold;
+    bool soil2Dry = soil2 > soilThreshold;
 
-      int targetZone = -1;
-      if (soil1Dry && waterLevel > waterMinLevel)       targetZone = 1;
-      else if (soil2Dry && waterLevel > waterMinLevel)  targetZone = 2;
+    int targetZone = -1;
+    if (soil1Dry && waterLevel > waterMinLevel)       targetZone = 1;
+    else if (soil2Dry && waterLevel > waterMinLevel)  targetZone = 2;
 
-      if (targetZone != -1) {
-        if (targetZone != currentZone) {
-          digitalWrite(PUMP_PIN, LOW);
-          pumpState = false;
-          moveToZone(targetZone);
-        }
-        pumpState = true;
-      } else {
-        pumpState = false;
+    if (targetZone != -1) {
+      if (targetZone != currentZone) {
         digitalWrite(PUMP_PIN, LOW);
-        moveToZone(0);
+        pumpState = false;
+        moveToZone(targetZone);
       }
+      pumpState = true;
+    } else {
+      pumpState = false;
+      digitalWrite(PUMP_PIN, LOW);
+      moveToZone(0);
     }
   }
 
@@ -250,9 +286,10 @@ if (autoMode) {
     payload += "\"light\":"       + String(light)      + ",";
     payload += "\"waterLevel\":"  + String(waterLevel);
     payload += "},\"actuators\":{";
-    payload += "\"pump\":{\"state\":"   + String(pumpState  ? "true":"false") + ",\"source\":\"" + pumpSource + "\"},";
-    payload += "\"fan\":{\"state\":"    + String(fanState   ? "true":"false") + ",\"source\":\"" + fanSource  + "\"},";
+    payload += "\"pump\":{\"state\":" + String(pumpState ? "true":"false") + ",\"autoEnabled\":" + String(pumpAutoEnabled ? "true":"false") + "},";
+    payload += "\"fan\":{\"state\":" + String(fanState ? "true":"false") + ",\"autoEnabled\":" + String(fanAutoEnabled ? "true":"false") + "},";
     payload += "\"buzzer\":{\"state\":" + String(buzzerState ? "true":"false") + "},";
+    payload += "\"manualWaterZone\":" + String(manualWaterZone) + ",";
     payload += "\"zone\":"  + String(currentZone);
     payload += "}}";
     client.publish("smartplant/data", payload.c_str());

@@ -15,6 +15,13 @@ Base URL: `http://localhost:3000`
 - `POST /api/iot/actuators/pump/off`
 - `POST /api/iot/actuators/fan/on`
 - `POST /api/iot/actuators/fan/off`
+- `POST /api/iot/actuators/pump/auto/on`
+- `POST /api/iot/actuators/pump/auto/off`
+- `POST /api/iot/actuators/fan/auto/on`
+- `POST /api/iot/actuators/fan/auto/off`
+- `POST /api/iot/water/zone/1`
+- `POST /api/iot/water/zone/2`
+- `POST /api/iot/water/stop`
 - `POST /api/iot/auto/on`
 - `POST /api/iot/auto/off`
 - `GET /api/iot/stream` - optional SSE stream
