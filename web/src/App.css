@@ -260,3 +260,7 @@ h2 {
 
 .tag.manual { background: #3d7bf0; color: white; }
 .tag.auto   { background: #2fb66b; color: #0b2f1e; }
+
+.tabs { display: flex; background: rgba(15, 63, 37, 0.6); border-radius: 12px; padding: 6px; margin-bottom: 16px; border: 1px solid rgba(144, 225, 167, 0.15); }
+.tab { flex: 1; padding: 12px 20px; border: none; background: transparent; color: #9de5be; font-weight: 600; border-radius: 10px; cursor: pointer; transition: all 0.2s ease; }
+.tab.active { background: linear-gradient(180deg, #2fb66b, #219a56); color: white; box-shadow: 0 4px 12px rgba(47, 182, 107, 0.3); }
