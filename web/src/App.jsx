@@ -113,65 +113,90 @@ export default function App() {
     }
   };
 
-  const fetchHistoryAndCharts = async () => {
-    try {
-      const [wateringRes, logsRes] = await Promise.all([
-        apiGet("/api/iot/logs/watering?limit=100"),
-        apiGet("/api/iot/logs/sensor?limit=200")
-      ]);
+const fetchHistoryAndCharts = async () => {
+  try {
+    const [wateringRes, logsRes] = await Promise.all([
+      apiGet("/api/iot/logs/watering?limit=100"),
+      apiGet("/api/iot/logs/sensor?limit=5000")   
+    ]);
 
-      setWateringHistory(wateringRes);
-      setSensorLogs(logsRes);
+    setWateringHistory(wateringRes);
+    setSensorLogs(logsRes);
 
-      const now = Date.now();
-      const sixHoursAgo = now - 6 * 60 * 60 * 1000;
+    const now = Date.now();
+    const oneHoursAgo = now -  60 * 60 * 1000;
 
-      let recentLogs = logsRes
-        .filter(log => new Date(log.timestamp) > sixHoursAgo)
-        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    let recentLogs = logsRes
+      .filter(log => new Date(log.timestamp) > oneHoursAgo)
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+      .map(log => ({
+        time: formatTime(log.timestamp),
+        soilMoisture: ((log.sensors?.soil1 || 0) + (log.sensors?.soil2 || 0)) / 2
+      }));
+
+    if (recentLogs.length < 3) {
+      recentLogs = logsRes
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 20)
+        .reverse()
         .map(log => ({
           time: formatTime(log.timestamp),
           soilMoisture: ((log.sensors?.soil1 || 0) + (log.sensors?.soil2 || 0)) / 2
         }));
-
-      if (recentLogs.length === 0) recentLogs = [{ time: "No recent data", soilMoisture: null }];
-      setLineData(recentLogs);
-
-      const dayMap = {};
-      wateringRes.forEach(w => {
-        const dateStr = new Date(w.timestamp).toISOString().split('T')[0];
-        if (!dayMap[dateStr]) dayMap[dateStr] = { date: dateStr, wateringCount: 0, tempSum: 0, tempCount: 0 };
-        dayMap[dateStr].wateringCount++;
-      });
-
-      logsRes.forEach(log => {
-        const dateStr = new Date(log.timestamp).toISOString().split('T')[0];
-        if (!dayMap[dateStr]) dayMap[dateStr] = { date: dateStr, wateringCount: 0, tempSum: 0, tempCount: 0 };
-        const day = dayMap[dateStr];
-        const hour = new Date(log.timestamp).getHours();
-        if (hour >= 6 && hour <= 20 && log.sensors?.temperature) {
-          day.tempSum += log.sensors.temperature;
-          day.tempCount++;
-        }
-      });
-
-      const daily = [];
-      for (let i = 4; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-        const dayInfo = dayMap[dateStr] || { date: dateStr, wateringCount: 0, tempSum: 0, tempCount: 0 };
-        daily.push({
-          day: formatShortDate(d),
-          wateringCount: dayInfo.wateringCount,
-          avgTemp: dayInfo.tempCount > 0 ? (dayInfo.tempSum / dayInfo.tempCount).toFixed(1) : "—"
-        });
-      }
-      setDailyData(daily);
-    } catch (e) {
-      console.error("Failed to fetch history", e);
     }
-  };
+
+    if (recentLogs.length === 0) {
+      recentLogs = [{ time: "No data", soilMoisture: null }];
+    }
+
+    setLineData(recentLogs);
+
+    const dayMap = {};
+
+    wateringRes.forEach(w => {
+      const dateStr = new Date(w.timestamp).toISOString().split('T')[0];
+      if (!dayMap[dateStr]) {
+        dayMap[dateStr] = { date: dateStr, wateringCount: 0, tempSum: 0, tempCount: 0 };
+      }
+      dayMap[dateStr].wateringCount++;
+    });
+    console.log(logsRes.length, "sensor logs fetched for history");
+    logsRes.forEach(log => {
+      const dateStr = new Date(log.timestamp).toISOString().split('T')[0];
+      if (!dayMap[dateStr]) {
+        dayMap[dateStr] = { date: dateStr, wateringCount: 0, tempSum: 0, tempCount: 0 };
+      }
+      const day = dayMap[dateStr];
+      const hour = new Date(log.timestamp).getHours();
+      const tempVal = Number(log.sensors?.temperature);
+      console.log(`Log ${log.timestamp}: hour=${hour}, temp=${tempVal}`);
+      if (hour >= 6 && hour <= 20 && !isNaN(tempVal)) {
+        day.tempSum += tempVal;
+        day.tempCount++;
+      }
+    });
+
+    const daily = [];
+    for (let i = 4; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+
+      const dayInfo = dayMap[dateStr] || { wateringCount: 0, tempSum: 0, tempCount: 0 };
+      console.log(`Day ${dateStr}: wateringCount=${dayInfo.wateringCount}, tempSum=${dayInfo.tempSum}, tempCount=${dayInfo.tempCount}`);
+      daily.push({
+        day: formatShortDate(d),
+        wateringCount: dayInfo.wateringCount,
+        avgTemp: dayInfo.tempCount > 0 ? (dayInfo.tempSum / dayInfo.tempCount).toFixed(1) : "—"
+      });
+    }
+
+    setDailyData(daily);
+
+  } catch (e) {
+    console.error("Failed to fetch history", e);
+  }
+};
 
   useEffect(() => {
     refreshLive();
@@ -234,7 +259,7 @@ export default function App() {
         <section className="hero card">
           <div>
             <h1>Garden Control Center</h1>
-            <p className="muted">Beautiful watering and climate controls for your plants.</p>
+            
           </div>
           <button className="autoPanelButton" onClick={() => setShowAutoPanel(true)}>Auto Modes</button>
         </section>
@@ -337,7 +362,7 @@ export default function App() {
         {/* ====================== HISTORY TAB ====================== */}
         {activeTab === "history" && (
           <section className="card">
-            <h2>Soil Moisture — Last 6 Hours</h2>
+            <h2>Soil Moisture — Last Hour</h2>
             <div style={{ height: 340, marginBottom: 50 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={lineData}>
