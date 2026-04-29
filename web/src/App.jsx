@@ -117,7 +117,7 @@ const fetchHistoryAndCharts = async () => {
   try {
     const [wateringRes, logsRes] = await Promise.all([
       apiGet("/api/iot/logs/watering?limit=100"),
-      apiGet("/api/iot/logs/sensor?limit=5000")   
+      apiGet("/api/iot/logs/sensor?limit=6500")   
     ]);
 
     setWateringHistory(wateringRes);

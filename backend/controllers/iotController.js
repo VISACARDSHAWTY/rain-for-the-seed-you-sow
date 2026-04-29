@@ -255,27 +255,27 @@ exports.predictNextWatering = async (req, res) => {
       const avgSoilCurr = (curr.sensors.soil1 + curr.sensors.soil2) / 2;
       const timeDiffHours = (new Date(curr.timestamp) - new Date(prev.timestamp)) / (1000 * 60 * 60);
 
-      if (timeDiffHours > 0 && timeDiffHours < 12) { // reasonable interval
+      if (timeDiffHours > 0 && timeDiffHours < 12) { 
         totalSoil += avgSoilCurr;
-        dryingRateSum += (avgSoilPrev - avgSoilCurr) / timeDiffHours; // moisture loss per hour
+        dryingRateSum += (avgSoilPrev - avgSoilCurr) / timeDiffHours; 
         count++;
       }
     }
 
     const avgSoilMoisture = totalSoil / count || 2000;
-    const avgDryingRate = dryingRateSum / count || 50; // moisture units per hour
+    const avgDryingRate = dryingRateSum / count || 50; 
 
-    const soilThreshold = 2500; // when we usually water
+    const soilThreshold = 2200; // when we usually water
 
     let hoursUntilWatering = Math.max(1, Math.round((avgSoilMoisture - soilThreshold) / avgDryingRate));
 
-    // Adjust based on recent watering and temperature
+
     const lastWatering = waterings[0];
     const recentTemp = sortedLogs[sortedLogs.length - 1]?.sensors.temperature || 25;
 
-    if (recentTemp > 30) hoursUntilWatering = Math.round(hoursUntilWatering * 0.7); // hotter = faster drying
+    if (recentTemp > 30) hoursUntilWatering = Math.round(hoursUntilWatering * 0.7); 
     if (lastWatering && (Date.now() - new Date(lastWatering.timestamp)) < 12 * 60 * 60 * 1000) {
-      hoursUntilWatering = Math.max(8, hoursUntilWatering); // don't water too soon after last
+      hoursUntilWatering = Math.max(8, hoursUntilWatering); 
     }
 
     const predictedTime = new Date(Date.now() + hoursUntilWatering * 60 * 60 * 1000);
