@@ -227,66 +227,119 @@ exports.attachSse = (app) => {
 
 exports.predictNextWatering = async (req, res) => {
   try {
-    const logs = await Log.find().sort({ timestamp: -1 }).limit(100).lean();
-    const waterings = await WateringEvent.find().sort({ timestamp: -1 }).limit(20).lean();
+    const logs = await Log.find().sort({ timestamp: 1 }).lean();
+    const waterings = await WateringEvent.find().sort({ timestamp: 1 }).lean();
 
-    if (logs.length < 10) {
+    if (logs.length < 20 || waterings.length < 2) {
       return res.json({
-        prediction: "Not enough data yet",
+        prediction: "Not enough data",
         confidence: "low",
         hoursUntil: null,
-        reason: "Insufficient historical data"
+        reason: "Need more cycles"
       });
     }
 
-    
-    const sortedLogs = logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const SOIL_THRESHOLD = 2350;
 
     
-    let totalSoil = 0;
-    let dryingRateSum = 0;
-    let count = 0;
+    let cycles = [];
 
-    for (let i = 1; i < sortedLogs.length; i++) {
-      const prev = sortedLogs[i - 1];
-      const curr = sortedLogs[i];
+    for (let i = 0; i < waterings.length; i++) {
+      const start = waterings[i];
+      const end = waterings[i + 1];
 
-      const avgSoilPrev = (prev.sensors.soil1 + prev.sensors.soil2) / 2;
-      const avgSoilCurr = (curr.sensors.soil1 + curr.sensors.soil2) / 2;
-      const timeDiffHours = (new Date(curr.timestamp) - new Date(prev.timestamp)) / (1000 * 60 * 60);
+      const startTime = new Date(start.timestamp);
+      const endTime = end
+        ? new Date(end.timestamp)
+        : new Date(logs[logs.length - 1].timestamp);
 
-      if (timeDiffHours > 0 && timeDiffHours < 12) { 
-        totalSoil += avgSoilCurr;
-        dryingRateSum += (avgSoilPrev - avgSoilCurr) / timeDiffHours; 
-        count++;
-      }
+      const cycleLogs = logs.filter(l =>
+        new Date(l.timestamp) >= startTime &&
+        new Date(l.timestamp) <= endTime
+      );
+
+      if (cycleLogs.length < 5) continue;
+
+      const first = cycleLogs[0];
+      const last = cycleLogs[cycleLogs.length - 1];
+
+      const startSoil =
+        (first.sensors.soil1 + first.sensors.soil2) / 2;
+
+      const endSoil =
+        (last.sensors.soil1 + last.sensors.soil2) / 2;
+
+      const hours =
+        (new Date(last.timestamp) - new Date(first.timestamp)) /
+        (1000 * 60 * 60);
+
+      if (hours <= 0) continue;
+
+      cycles.push({
+        rate: (endSoil - startSoil) / hours,
+        duration: hours,
+        startSoil,
+        endSoil
+      });
     }
 
-    const avgSoilMoisture = totalSoil / count || 2000;
-    const avgDryingRate = dryingRateSum / count || 50; 
-
-    const soilThreshold = 2200; // when we usually water
-
-    let hoursUntilWatering = Math.max(1, Math.round((avgSoilMoisture - soilThreshold) / avgDryingRate));
-
-
-    const lastWatering = waterings[0];
-    const recentTemp = sortedLogs[sortedLogs.length - 1]?.sensors.temperature || 25;
-
-    if (recentTemp > 30) hoursUntilWatering = Math.round(hoursUntilWatering * 0.7); 
-    if (lastWatering && (Date.now() - new Date(lastWatering.timestamp)) < 12 * 60 * 60 * 1000) {
-      hoursUntilWatering = Math.max(8, hoursUntilWatering); 
+    if (cycles.length < 3) {
+      return res.json({
+        prediction: "Not enough cycles",
+        confidence: "low"
+      });
     }
+    const rates = cycles.map(c => c.rate).filter(r => r > 0);
 
-    const predictedTime = new Date(Date.now() + hoursUntilWatering * 60 * 60 * 1000);
+    rates.sort((a, b) => a - b);
+    const medianRate = rates[Math.floor(rates.length / 2)];
+
+    
+    const latestLogs = logs.slice(-10);
+
+    const currentSoil =
+      latestLogs.reduce((sum, l) =>
+        sum + (l.sensors.soil1 + l.sensors.soil2) / 2, 0
+      ) / latestLogs.length;
+
+    const lastWatering = waterings[waterings.length - 1];
+    const lastWateringTime = new Date(lastWatering.timestamp);
+
+    const hoursSinceWatering =
+      (Date.now() - lastWateringTime) / (1000 * 60 * 60);
+
+    
+    const soilToDry =
+      currentSoil >= SOIL_THRESHOLD
+        ? 0
+        : SOIL_THRESHOLD - currentSoil;
+
+    const hoursUntil =
+      medianRate > 0
+        ? Math.max(1, soilToDry / medianRate)
+        : 12;
+
+    
+    const recentTemp =
+      latestLogs[latestLogs.length - 1]?.sensors.temperature || 25;
+
+    let adjustedHours = hoursUntil;
+
+    if (recentTemp > 30) adjustedHours *= 0.85;
+    if (recentTemp < 18) adjustedHours *= 1.1;
+
+    
+    const predictedTime = new Date(
+      Date.now() + adjustedHours * 60 * 60 * 1000
+    );
 
     res.json({
       prediction: predictedTime.toLocaleString(),
-      hoursUntil: hoursUntilWatering,
-      confidence: hoursUntilWatering > 48 ? "medium" : "high",
-      currentAvgSoil: Math.round(avgSoilMoisture),
-      avgDryingRate: Math.round(avgDryingRate),
-      reason: `Based on current moisture (${Math.round(avgSoilMoisture)}) and drying rate (${Math.round(avgDryingRate)}/hour)`
+      hoursUntil: Math.round(adjustedHours),
+      confidence: cycles.length > 10 ? "high" : "medium",
+      currentSoil: Math.round(currentSoil),
+      medianDryingRate: Math.round(medianRate),
+      cyclesUsed: cycles.length
     });
 
   } catch (err) {

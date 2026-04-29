@@ -272,7 +272,6 @@ const fetchHistoryAndCharts = async () => {
           <button className={`tab ${activeTab === "history" ? "active" : ""}`} onClick={() => setActiveTab("history")}>History & Charts</button>
         </div>
 
-        {/* LIVE SENSORS */}
         {activeTab === "live" && (
           <>
             <section className="card">
@@ -317,10 +316,11 @@ const fetchHistoryAndCharts = async () => {
 
             {prediction && (
               <section className="card">
-                <h2>🌱 Next Watering Prediction</h2>
+                <h2>Next Watering Prediction</h2>
                 <div style={{ textAlign: "center", padding: "24px 0" }}>
                   <div style={{ fontSize: "2.6rem", fontWeight: "700", color: "#67d18f", marginBottom: "8px" }}>
-                    {prediction.hoursUntil ? `${prediction.hoursUntil} hours` : "—"}
+                    {prediction.hoursUntil ? `${prediction.hoursUntil} hour${prediction.hoursUntil === 1 ? "" : "s"}`
+                      : "—"}
                   </div>
                   <div style={{ fontSize: "1.15rem", color: "#cbf2d8" }}>
                     {prediction.prediction}
@@ -335,7 +335,7 @@ const fetchHistoryAndCharts = async () => {
           </>
         )}
 
-        {/* CONTROLS TAB */}
+    
         {activeTab === "controls" && (
           <>
             <section className="card">
@@ -359,7 +359,7 @@ const fetchHistoryAndCharts = async () => {
           </>
         )}
 
-        {/* ====================== HISTORY TAB ====================== */}
+        
         {activeTab === "history" && (
           <section className="card">
             <h2>Soil Moisture — Last Hour</h2>
